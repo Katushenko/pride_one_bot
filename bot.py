@@ -57,5 +57,5 @@ def get_main_menu():
     return keyboard
 
 if __name__ == '__main__':
-    bot = Bot(token=TOKEN)
+    bot = Bot(8668827131:AAEYJSI5zf4p_H7QoqYZGKnFvaRA38ZyLJA)
     dp.run_polling(bot)
