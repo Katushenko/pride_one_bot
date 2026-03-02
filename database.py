@@ -2,7 +2,7 @@ import sqlite3
 from datetime import datetime
 
 class Database:
-    def __init__(self, db_path="classes.db"):
+    def __init__(self, db_path="bothost_users.db"):
         self.db_path = db_path
         self.init_db()
 
@@ -11,42 +11,37 @@ class Database:
 
     def init_db(self):
         with self.get_connection() as conn:
-            # Таблица пользователей
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY,
-            user_id INTEGER UNIQUE NOT NULL,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id INTEGER UNIQUE NOT NULL,
             username TEXT,
             full_name TEXT,
-            remaining_classes INTEGER DEFAULT 10,
+            phone_number TEXT NOT NULL,
             registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-            ''')
-
-            # Таблица расписания занятий
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS schedule (
-            id INTEGER PRIMARY KEY,
-            class_name TEXT NOT NULL,
-            date TEXT NOT NULL,
-            time TEXT NOT NULL,
-            duration INTEGER DEFAULT 60,
-            max_participants INTEGER DEFAULT 15
-        )
-            ''')
-
-            # Таблица бронирований
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS bookings (
-            id INTEGER PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            schedule_id INTEGER NOT NULL,
-            booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (user_id),
-            FOREIGN KEY (schedule_id) REFERENCES schedule (id),
-            UNIQUE(user_id, schedule_id)
         )
             ''')
             conn.commit()
 
-    def register_user(self, user_id, username, full_name):
+    def register_user(self, telegram_id, username, full_name, phone_number):
+        try:
+            with self.get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO users (telegram_id, username, full_name, phone_number) VALUES (?, ?, ?, ?)",
+            (telegram_id, username, full_name, phone_number)
+        )
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error registering user: {e}")
+            return False
+
+    def get_user(self, telegram_id):
+        with self.get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
+            return cursor.fetchone()
+
+    def user_exists(self, telegram_id):
+        with self.get_connection() as conn:
+            cursor = conn.execute("SELECT 1 FROM users WHERE telegram_id = ? LIMIT 1", (telegram_id,))
+            return cursor.fetchone() is not None
