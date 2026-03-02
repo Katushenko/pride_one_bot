@@ -94,7 +94,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 def main() -> None:
     """Run the bot."""
-    TOKEN = "<YOUR TELEGRAM BOT TOKEN HERE>"
+    TOKEN = "8668827131:AAEYJSI5zf4p_H7QoqYZGKnFvaRA38ZyLJA"
     application = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
