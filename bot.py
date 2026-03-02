@@ -3,7 +3,6 @@ from aiogram.filters.command import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
-from envparse import env
 from database import register_user, db_session, User
 
 # Загружаем переменную окружения
