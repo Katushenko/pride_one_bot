@@ -14,7 +14,14 @@ dp = Dispatcher()
 class RegistrationForm(StatesGroup):
     fullname = State()
     email = State()
-
+    
+def get_main_menu():
+    """
+    Возвращает главное меню клавиатуры.
+    """
+    kb = [[KeyboardButton(text="/start")]]
+    keyboard = ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+    return keyboard
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext):
     """
@@ -47,13 +54,7 @@ async def process_email(message: types.Message, state: FSMContext):
 
     await state.clear()
 
-def get_main_menu():
-    """
-    Возвращает главное меню клавиатуры.
-    """
-    kb = [[KeyboardButton(text="/start")]]
-    keyboard = ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
-    return keyboard
+
 
 if __name__ == '__main__':
     bot = Bot(token="8668827131:AAEYJSI5zf4p_H7QoqYZGKnFvaRA38ZyLJA")
