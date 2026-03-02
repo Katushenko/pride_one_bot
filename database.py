@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker, declarative_base
-from envparse import env
+
 
 env.read_envfile('.env')
 DATABASE_URL = env.str('DATABASE_URL', default='sqlite:///chatbot.db')
