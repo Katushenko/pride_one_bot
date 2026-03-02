@@ -58,4 +58,7 @@ def get_main_menu():
 
 if __name__ == '__main__':
     bot = Bot(token="8668827131:AAEYJSI5zf4p_H7QoqYZGKnFvaRA38ZyLJA")
+    dp = Dispatcher()
+    dp.include_router(router)  # если используете роутер
     dp.run_polling(bot)
+
