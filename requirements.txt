@@ -1,0 +1,5 @@
+python-telegram-bot==20.*
+sqlalchemy>=1.4
+pysqlite3-binary>=0.4.6
+logging>=0.5.1.2
+typing_extensions>=4.0
