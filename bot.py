@@ -31,7 +31,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if db.user_exists(user_id):
         await update.message.reply_text(
             f"Добро пожаловать обратно, {full_name}! Вы уже зарегистрированы.",
-            reply_markup=get_mainmenu()
+            reply_markup=get_main_menu()
         )
         return
 
@@ -46,7 +46,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 После регистрации вы получите доступ к сервисам bothost.ru
     """
 
-    await update.message.reply_text(welcome_text, reply_markup=get_mainmenu())
+    await update.message.reply_text(welcome_text, reply_markup=get_main_menu())
 
 async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -79,7 +79,7 @@ Username: @{username if username else 'не указан'}
 
 Что вы хотите сделать дальше?
         """
-        await update.message.reply_text(success_text, reply_markup=get_mainmenu())
+        await update.message.reply_text(success_text, reply_markup=get_main_menu())
     else:
         await update.message.reply_text("Ошибка при регистрации. Попробуйте позже.")
 
@@ -90,7 +90,7 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user:
         await update.message.reply_text(
             "Вы не зарегистрированы. Используйте /start для регистрации.",
-            reply_markup=get_mainmenu()
+            reply_markup=get_main_menu()
         )
         return
 
@@ -121,7 +121,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Ваши данные защищены и используются только для сервисов bothost.ru
     """
-    await update.message.reply_text(help_text, reply_markup=get_mainmenu())
+    await update.message.reply_text(help_text, reply_markup=get_main_menu())
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -134,7 +134,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(
             "Используйте кнопки меню для навигации",
-            reply_markup=get_mainmenu()
+            reply_markup=get_main_menu()
         )
 
 def main():
