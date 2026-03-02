@@ -1,147 +1,65 @@
-import sqlite3
-from datetime import datetime
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from database import Database
+import logging
 
-class Database:
-    def __init__(self, db_path="classes.db"):
-        self.db_path = db_path
-        self.init_db()
+# Настройка логирования
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-    def get_connection(self):
-        return sqlite3.connect(self.db_path)
+# Инициализация базы данных
+db = Database()
 
-    def init_db(self):
-        with self.get_connection() as conn:
-            # Таблица пользователей
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY,
-            user_id INTEGER UNIQUE NOT NULL,
-            username TEXT,
-            full_name TEXT,
-            remaining_classes INTEGER DEFAULT 10,
-            registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-            ''')
+# Клавиатура главного меню
+def get_main_menu():
+    keyboard = [
+        [KeyboardButton("📋 Расписание"), KeyboardButton("🎟️ Забронировать")],
+        [KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Помощь")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-            # Таблица расписания занятий
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS schedule (
-            id INTEGER PRIMARY KEY,
-            class_name TEXT NOT NULL,
-            date TEXT NOT NULL,
-            time TEXT NOT NULL,
-            duration INTEGER DEFAULT 60,
-            max_participants INTEGER DEFAULT 15
-        )
-            ''')
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    username = user.username
+    full_name = user.full_name
 
-            # Таблица бронирований
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS bookings (
-            id INTEGER PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            schedule_id INTEGER NOT NULL,
-            booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (user_id),
-            FOREIGN KEY (schedule_id) REFERENCES schedule (id),
-            UNIQUE(user_id, schedule_id)
-        )
-            ''')
-            conn.commit()
+    # Регистрируем пользователя
+    db.register_user(user_id, username, full_name)
 
-    def register_user(self, user_id, username, full_name):
-        try:
-            with self.get_connection() as conn:
-                conn.execute(
-                    "INSERT OR IGNORE INTO users (user_id, username, full_name) VALUES (?, ?, ?)",
-            (user_id, username, full_name)
-        )
-                return True
-        except Exception as e:
-            print(f"Error registering user: {e}")
-            return False
+    welcome_text = f"""
+Добро пожаловать, {full_name}! 👋
 
-    def get_user(self, user_id):
-        with self.get_connection() as conn:
-            cursor = conn.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-            return cursor.fetchone()
+Я бот для записи на занятия. Вот что я умею:
 
-    def add_schedule(self, class_name, date, time, duration=60, max_participants=15):
-        with self.get_connection() as conn:
-            conn.execute(
-                "INSERT INTO schedule (class_name, date, time, duration, max_participants) VALUES (?, ?, ?, ?, ?)",
-            (class_name, date, time, duration, max_participants)
-        )
-            conn.commit()
+📋 Расписание — посмотреть доступные занятия
+🎟️ Забронировать — записаться на занятие
+👤 Мой профиль — информация о ваших занятиях
+❓ Помощь — справка по боту
 
-    def get_schedule(self):
-        with self.get_connection() as conn:
-            cursor = conn.execute(
-                "SELECT id, class_name, date, time, duration FROM schedule ORDER BY date, time"
-        )
-            return cursor.fetchall()
+У вас {db.get_remaining_classes(user_id)} оставшихся занятий.
+    """
 
-    def book_class(self, user_id, schedule_id):
-        try:
-            with self.get_connection() as conn:
-                # Проверяем, есть ли места
-                cursor = conn.execute(
-                    "SELECT COUNT(*) FROM bookings WHERE schedule_id = ?",
-            (schedule_id,)
-        )
-                booked_count = cursor.fetchone()[0]
 
-                cursor = conn.execute(
-            "SELECT max_participants FROM schedule WHERE id = ?",
-            (schedule_id,)
-        )
-                max_participants = cursor.fetchone()[0]
+    await update.message.reply_text(welcome_text, reply_markup=get_mainmenu())
 
-                if booked_count >= max_participants:
-                    return False, "Нет свободных мест"
+async def show_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    schedule = db.get_schedule()
+    if not schedule:
+        await update.message.reply_text("Расписание пока пустое. Скоро будут добавлены новые занятия!")
+        return
 
-                # Проверяем остаток занятий у пользователя
-                cursor = conn.execute(
-            "SELECT remaining_classes FROM users WHERE user_id = ?",
-            (user_id,)
-        )
-                remaining = cursor.fetchone()[0]
-                if remaining <= 0:
-                    return False, "Недостаточно занятий"
+    schedule_text = "📅 Доступные занятия:\n\n"
+    for class_id, name, date, time, duration in schedule:
+        schedule_text += f"📌 {name}\n🗓️ {date}\n⏰ {time}\n⏱️ {duration} мин\nID: {class_id}\n\n"
 
-                # Создаём бронирование
-                conn.execute(
-            "INSERT INTO bookings (user_id, schedule_id) VALUES (?, ?)",
-            (user_id, schedule_id)
-        )
-                # Уменьшаем количество оставшихся занятий
-                conn.execute(
-            "UPDATE users SET remaining_classes = remaining_classes - 1 WHERE user_id = ?",
-            (user_id,)
-        )
-                conn.commit()
-                return True, "Бронирование успешно"
-        except sqlite3.IntegrityError:
-            return False, "Вы уже записаны на это занятие"
-        except Exception as e:
-            return False, f"Ошибка: {e}"
+    await update.message.reply_text(schedule_text)
 
-    def get_user_bookings(self, user_id):
-        with self.get_connection() as conn:
-            cursor = conn.execute('''
-                SELECT s.class_name, s.date, s.time
-            FROM bookings b
-            JOIN schedule s ON b.schedule_id = s.id
-            WHERE b.user_id = ?
-            ORDER BY s.date, s.time
-        ''', (user_id,))
-            return cursor.fetchall()
-
-    def get_remaining_classes(self, user_id):
-        with self.get_connection() as conn:
-            cursor = conn.execute(
-            "SELECT remaining_classes FROM users WHERE user_id = ?",
-            (user_id,)
-        )
-            result = cursor.fetchone()
-            return result[0] if result else 0
+async def book_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Введите ID занятия для бронирования (можно посмотреть в расписании):"
+    )
+    context.user_data['await
