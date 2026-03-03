@@ -21,6 +21,56 @@ class Database:
             registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
             ''')
+             # Таблица занятий
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS classes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            discipline_id INTEGER NOT NULL,
+            location_id INTEGER NOT NULL,
+            trainer TEXT NOT NULL,
+            max_participants INTEGER DEFAULT 15,
+            current_participants INTEGER DEFAULT 0,
+            FOREIGN KEY (location_id) REFERENCES locations (id),
+            FOREIGN KEY (discipline_id) REFERENCES discipline (id)
+        )
+            ''')
+            # Таблица локаций
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS locations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            adress TEXT NOT NULL,
+            description TEXT NOT NULL
+        )
+            # Таблица дисциплин 
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS disciplines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                description TEXT NOT NULL
+        )
+            ''')   
+            # Таблица бронирований занятий
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS class_bookings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            class_id INTEGER NOT NULL,
+            booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (telegram_id),
+            FOREIGN KEY (class_id) REFERENCES classes (id),
+            UNIQUE(user_id, class_id)
+        )
+            # Таблица посещений
+             conn.execute('''
+                CREATE TABLE IF NOT EXISTS visit_classes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            class_id INTEGER NOT NULL,
+            visit_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (telegram_id),
+            FOREIGN KEY (class_id) REFERENCES classes (id),
+            UNIQUE(user_id, class_id)
+            ''')    
             conn.commit()
 
     def register_user(self, telegram_id, username, full_name, phone_number):
