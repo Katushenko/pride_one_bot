@@ -20,12 +20,12 @@ ADMIN_IDS = [298909647]  # Замените на реальный ID
 USER_STATES = {}
 
 # Клавиатура главного меню
-def get_main_menu():
+def get_main_menu(user_id):
     keyboard = [
         [KeyboardButton("💰 Баланс")],
         [KeyboardButton("👤 Мой профиль")]
     ]
-    if USER_STATES.get(update.effective_user.id) in ADMIN_IDS:
+    if user_id in ADMIN_IDS:
         keyboard.append([KeyboardButton("➕ Добавить танцора"), KeyboardButton("➕ Добавить оплату")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -33,7 +33,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_name = user.full_name
     telegram_login = user.username
-
     user_id = user.id
 
     # Проверяем, зарегистрирован ли пользователь
@@ -41,7 +40,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if existing_user:
         await update.message.reply_text(
             f"Добро пожаловать обратно, {existing_user[4]}!",
-            reply_markup=get_mainmenu()
+            reply_markup=get_main_menu(user_id)  # Передаём user_id
         )
         return
 
@@ -69,7 +68,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             USER_STATES[user_id] = None
             await update.message.reply_text(
                 f"✅ Регистрация завершена! Добро пожаловать, {name}!",
-                reply_markup=get_main_menu()
+                reply_markup=get_main_menu(user_id)  # Передаём user_id
             )
         else:
             await update.message.reply_text("❌ Ошибка при регистрации. Попробуйте ещё раз.")
@@ -78,7 +77,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Обработка команд меню
     if text == "💰 Баланс":
         balance = db.get_balance(user_id)
-        await update.message.reply_text(f"💰 Ваш баланс: {balance} руб.")
+        await update.message.reply_text(f"💰 Ваш баланс: {balance} руб.", reply_markup=get_main_menu(user_id))  # Передаём user_id
 
     elif text == "👤 Мой профиль":
         user = db.get_user_by_telegram_name(update.effective_user.full_name)
@@ -92,7 +91,7 @@ Telegram: {user[1]}
 Логин: @{user[2] if user[2] else 'не указан'}
 Телефон: {user[3] if user[3] else 'не указан'}
             """
-            await update.message.reply_text(profile_text)
+            await update.message.reply_text(profile_text, reply_markup=get_main_menu(user_id))  # Передаём user_id
         else:
             await update.message.reply_text("❌ Пользователь не найден.")
 
@@ -100,20 +99,21 @@ Telegram: {user[1]}
     elif user_id in ADMIN_IDS:
         if text == "➕ Добавить танцора":
             USER_STATES[user_id] = 'waiting_bboy_name'
-            await update.message.reply_text("Введите имя танцора:")
+            await update.message.reply_text("Введите имя танцора:", reply_markup=get_main_menu(user_id))  # Передаём user_id
 
         elif text == "➕ Добавить оплату":
             USER_STATES[user_id] = 'waiting_payment_data'
             await update.message.reply_text(
                 "Введите данные оплаты в формате:\n"
                 "User_ID, BBoy_Id, Дата, Дата_начала, Дата_окончания, Количество, Цена\n\n"
-                "Пример:\n1, 1, 2024-03-15, 2024-03-15 18:00, 2024-03-15 19:00, 1, 1500"
+                "Пример:\n1, 1, 2024-03-15, 2024-03-15 18:00, 2024-03-15 19:00, 1, 1500",
+                reply_markup=get_main_menu(user_id)  # Передаём user_id
             )
 
     else:
         await update.message.reply_text(
             "Используйте кнопки меню для навигации",
-            reply_markup=get_main_menu()
+            reply_markup=get_main_menu(user_id)  # Передаём user_id
         )
 
 
@@ -176,7 +176,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Используйте кнопки меню для навигации!
     """
-    await update.message.reply_text(help_text, reply_markup=get_main_menu())
+    await update.message.reply_text(help_text, reply_markup=get_main_menu(user_id))
 
 
 def main():
