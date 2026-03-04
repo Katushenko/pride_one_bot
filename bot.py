@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 db = Database()
 
 # ID администратора (замените на ваш Telegram ID)
-ADMIN_IDS = [123456789]  # Замените на реальный ID
+ADMIN_IDS = [298909647]  # Замените на реальный ID
 
 # Состояние пользователя
 USER_STATES = {}
@@ -181,7 +181,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     # Замените 'YOUR_BOT_TOKEN' на токен вашего бота от @BotFather
-    application = Application.builder().token("YOUR_BOT_TOKEN").build()
+    application = Application.builder().token("8668827131:AAEYJSI5zf4p_H7QoqYZGKnFvaRA38ZyLJA").build()
 
     # Обработчики команд
     application.add_handler(CommandHandler("start", start))
