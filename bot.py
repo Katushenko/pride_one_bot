@@ -25,7 +25,7 @@ def get_main_menu():
         [KeyboardButton("💰 Баланс")],
         [KeyboardButton("👤 Мой профиль")]
     ]
-    if USER_STATES.get(update.effective_user.id) in ['admin']:
+    if USER_STATES.get(update.effective_user.id) in ADMIN_IDS:
         keyboard.append([KeyboardButton("➕ Добавить танцора"), KeyboardButton("➕ Добавить оплату")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
