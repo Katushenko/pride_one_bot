@@ -1,163 +1,121 @@
 import sqlite3
-from datetime import datetime
+from datetime import date, timedelta
 
-class Database:
-    def __init__(self, db_path="dance_studio.db"):
-        self.db_path = db_path
-        self.init_db()
+DB_PATH = "pride_one.db"
 
-    def get_connection(self):
-        return sqlite3.connect(self.db_path)
 
-    def init_db(self):
-        with self.get_connection() as conn:
-            # Таблица пользователей
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS Users (
-                    User_Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Telegram_Name TEXT NOT NULL,
-            Telegram_Login TEXT,
-            Phone_Number TEXT,
-            Name TEXT NOT NULL
-        )
-            ''')
+def _conn():
+    c = sqlite3.connect(DB_PATH)
+    c.row_factory = sqlite3.Row
+    return c
 
-            # Таблица оплаты
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS Payment (
-            Check_Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            User_ID INTEGER NOT NULL,
-            BBoy_Id INTEGER NOT NULL,
-            Date TEXT NOT NULL,
-            Date_Start TEXT NOT NULL,
-            Date_End TEXT NOT NULL,
-            Count INTEGER NOT NULL,
-            Price REAL NOT NULL,
-            FOREIGN KEY (User_ID) REFERENCES Users(User_Id),
-            FOREIGN KEY (BBoy_Id) REFERENCES BBoy(BBoy_Id)
-        )
-            ''')
 
-            # Таблица занятий
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS Training (
-            Training_Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            User_ID INTEGER NOT NULL,
-            BBoy_Id INTEGER NOT NULL,
-            Date TEXT NOT NULL,
-            Number INTEGER NOT NULL,
-            FOREIGN KEY (User_ID) REFERENCES Users(User_Id),
-            FOREIGN KEY (BBoy_Id) REFERENCES BBoy(BBoy_Id)
-        )
-            ''')
+def init_db():
+    with _conn() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id    INTEGER PRIMARY KEY,
+                full_name  TEXT,
+                username   TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS schedule (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                name             TEXT    NOT NULL,
+                instructor       TEXT    NOT NULL,
+                day_of_week      INTEGER NOT NULL,
+                time             TEXT    NOT NULL,
+                duration         INTEGER DEFAULT 60,
+                max_participants INTEGER DEFAULT 10,
+                description      TEXT,
+                is_active        INTEGER DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS bookings (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER NOT NULL,
+                user_name  TEXT,
+                class_id   INTEGER NOT NULL,
+                class_date TEXT    NOT NULL,
+                status     TEXT    DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (class_id) REFERENCES schedule(id),
+                UNIQUE (user_id, class_id, class_date)
+            );
+        """)
+        if conn.execute("SELECT COUNT(*) FROM schedule").fetchone()[0] == 0:
+            conn.executemany(
+                "INSERT INTO schedule (name,instructor,day_of_week,time,duration,max_participants,description) VALUES (?,?,?,?,?,?,?)",
+                [
+                    ("Йога",            "Анна Смирнова",   0, "09:00", 60, 12, "Утренняя йога"),
+                    ("Пилатес",         "Мария Иванова",   1, "10:00", 60, 10, "Пилатес для всех"),
+                    ("Зумба",           "Карина Петрова",  2, "18:00", 60, 20, "Танцевальная аэробика"),
+                    ("Йога",            "Анна Смирнова",   3, "09:00", 60, 12, "Утренняя йога"),
+                    ("Силовая",         "Алексей Козлов",  4, "17:00", 90, 15, "Силовые упражнения"),
+                    ("Растяжка",        "Мария Иванова",   5, "11:00", 45, 10, "Стретчинг"),
+                    ("Воскресная йога", "Анна Смирнова",   6, "10:00", 75, 12, "Йога выходного дня"),
+                ],
+            )
 
-            # Таблица танцоров
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS BBoy (
-            BBoy_Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            User_Id INTEGER NOT NULL,
-            Name TEXT NOT NULL,
-            FOREIGN KEY (User_Id) REFERENCES Users(User_Id)
-        )
-            ''')
 
-            # Таблица баланса
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS Balance (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            User_id INTEGER UNIQUE NOT NULL,
-            Balance REAL DEFAULT 0.0,
-            FOREIGN KEY (User_id) REFERENCES Users(User_Id)
-        )
-            ''')
-            conn.commit()
+def upsert_user(user_id, full_name, username):
+    with _conn() as conn:
+        conn.execute("INSERT OR IGNORE INTO users (user_id,full_name,username) VALUES (?,?,?)", (user_id, full_name, username))
 
-    def register_user(self, telegram_name, telegram_login, phone_number, name):
-        """Регистрирует нового пользователя"""
+
+def get_schedule():
+    with _conn() as conn:
+        return conn.execute("SELECT * FROM schedule WHERE is_active=1 ORDER BY day_of_week,time").fetchall()
+
+
+def get_class_by_id(class_id):
+    with _conn() as conn:
+        return conn.execute("SELECT * FROM schedule WHERE id=?", (class_id,)).fetchone()
+
+
+def get_available_slots(user_id, from_date, days_ahead=14):
+    results = []
+    with _conn() as conn:
+        for i in range(days_ahead):
+            d = from_date + timedelta(days=i)
+            ds = d.strftime("%Y-%m-%d")
+            for c in conn.execute("SELECT * FROM schedule WHERE day_of_week=? AND is_active=1 ORDER BY time", (d.weekday(),)).fetchall():
+                booked   = conn.execute("SELECT COUNT(*) FROM bookings WHERE class_id=? AND class_date=? AND status='active'", (c["id"], ds)).fetchone()[0]
+                is_booked= conn.execute("SELECT COUNT(*) FROM bookings WHERE user_id=? AND class_id=? AND class_date=? AND status='active'", (user_id, c["id"], ds)).fetchone()[0] > 0
+                results.append({"id": c["id"], "name": c["name"], "instructor": c["instructor"], "time": c["time"], "max_participants": c["max_participants"], "class_date": ds, "booked_count": booked, "is_booked": is_booked})
+    return results
+
+
+def book_class(user_id, user_name, class_id, class_date):
+    with _conn() as conn:
+        c = conn.execute("SELECT * FROM schedule WHERE id=?", (class_id,)).fetchone()
+        if not c:
+            return False, "Занятие не найдено"
+        booked = conn.execute("SELECT COUNT(*) FROM bookings WHERE class_id=? AND class_date=? AND status='active'", (class_id, class_date)).fetchone()[0]
+        if booked >= c["max_participants"]:
+            return False, "Свободных мест нет"
         try:
-            with self.get_connection() as conn:
-                cursor = conn.execute(
-                    "INSERT INTO Users (Telegram_Name, Telegram_Login, Phone_Number, Name) VALUES (?, ?, ?, ?)",
-            (telegram_name, telegram_login, phone_number, name)
-        )
-                user_id = cursor.lastrowid
+            conn.execute("INSERT INTO bookings (user_id,user_name,class_id,class_date) VALUES (?,?,?,?)", (user_id, user_name, class_id, class_date))
+            return True, "OK"
+        except Exception:
+            return False, "Вы уже записаны на это занятие"
 
-                # Создаём запись в балансе с нулевым балансом
-                conn.execute(
-            "INSERT OR IGNORE INTO Balance (User_id, Balance) VALUES (?, 0.0)",
-            (user_id,)
-        )
-                conn.commit()
-                return user_id
-        except Exception as e:
-            print(f"Error registering user: {e}")
-            return None
 
-    def get_user_by_telegram_name(self, telegram_name):
-        """Получает пользователя по Telegram имени"""
-        with self.get_connection() as conn:
-            cursor = conn.execute("SELECT * FROM Users WHERE Telegram_Name = ?", (telegram_name,))
-            return cursor.fetchone()
+def get_active_bookings(user_id):
+    today = date.today().strftime("%Y-%m-%d")
+    with _conn() as conn:
+        return conn.execute("SELECT b.id as booking_id,b.class_date,b.status,s.name,s.time,s.instructor FROM bookings b JOIN schedule s ON b.class_id=s.id WHERE b.user_id=? AND b.status='active' AND b.class_date>=? ORDER BY b.class_date,s.time", (user_id, today)).fetchall()
 
-    def add_bboy(self, user_id, name):
-        """Добавляет танцора"""
-        try:
-            with self.get_connection() as conn:
-                conn.execute(
-            "INSERT INTO BBoy (User_Id, Name) VALUES (?, ?)",
-            (user_id, name)
-        )
-                conn.commit()
-                return True
-        except Exception as e:
-            print(f"Error adding bboy: {e}")
-            return False
 
-    def add_payment(self, user_id, bboy_id, date, date_start, date_end, count, price):
-        """Добавляет запись об оплате"""
-        try:
-            with self.get_connection() as conn:
-                conn.execute(
-            "INSERT INTO Payment (User_ID, BBoy_Id, Date, Date_Start, Date_End, Count, Price) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (user_id, bboy_id, date, date_start, date_end, count, price)
-        )
-                conn.commit()
-                return True
-        except Exception as e:
-            print(f"Error adding payment: {e}")
-            return False
+def get_bookings_history(user_id):
+    with _conn() as conn:
+        return conn.execute("SELECT b.id as booking_id,b.class_date,b.status,s.name,s.time,s.instructor FROM bookings b JOIN schedule s ON b.class_id=s.id WHERE b.user_id=? ORDER BY b.class_date DESC", (user_id,)).fetchall()
 
-    def add_training(self, user_id, bboy_id, date, number):
-        """Добавляет занятие"""
-        try:
-            with self.get_connection() as conn:
-                conn.execute(
-            "INSERT INTO Training (User_ID, BBoy_Id, Date, Number) VALUES (?, ?, ?, ?)",
-            (user_id, bboy_id, date, number)
-        )
-                conn.commit()
-                return True
-        except Exception as e:
-            print(f"Error adding training: {e}")
-            return False
 
-    def get_balance(self, user_id):
-        """Получает баланс пользователя"""
-        with self.get_connection() as conn:
-            cursor = conn.execute("SELECT Balance FROM Balance WHERE User_id = ?", (user_id,))
-            result = cursor.fetchone()
-            return result[0] if result else 0.0
+def get_booking_by_id(booking_id, user_id):
+    with _conn() as conn:
+        return conn.execute("SELECT b.*,s.name,s.time,s.instructor FROM bookings b JOIN schedule s ON b.class_id=s.id WHERE b.id=? AND b.user_id=?", (booking_id, user_id)).fetchone()
 
-    def update_balance(self, user_id, amount):
-        """Обновляет баланс пользователя"""
-        try:
-            with self.get_connection() as conn:
-                conn.execute(
-            "UPDATE Balance SET Balance = Balance + ? WHERE User_id = ?",
-            (amount, user_id)
-        )
-                conn.commit()
-                return True
-        except Exception as e:
-            print(f"Error updating balance: {e}")
-            return False
+
+def cancel_booking(booking_id, user_id):
+    with _conn() as conn:
+        conn.execute("UPDATE bookings SET status='cancelled' WHERE id=? AND user_id=?", (booking_id, user_id))
